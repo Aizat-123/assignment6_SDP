@@ -1,0 +1,55 @@
+## Visitors
+
+| Visitor | Function |
+| --- | --- |
+| `SecurityAuditVisitor` | Detects exposed passwords and keys, insecure configurations, vulnerable dependencies, and risky source code. In this model, every detected violation is considered critical. |
+| `ProjectStatisticsVisitor` | Counts files, lines of code, tests, and dependencies. It calculates the average complexity and the ratio of tests to source files. |
+| `QualityGateVisitor` | Leverages audit and statistics data. A project passes the check if there are no critical issues, the average complexity is 10 or less, and the test-to-source ratio is at least 0.40. |
+| `ComplianceVisitor` | Verifies the absence of exposed passwords and keys, ensures that dependencies have specified versions, and checks for the absence of prohibited libraries. |
+| `TechnicalDebtVisitor` | Assigns one point for every unit of complexity exceeding 10 in each source file. |
+
+Lines of code are counted across both source and test files. If a project
+contains no source files, the average complexity and the test-to-source
+ratio are both zero.
+
+The demo consists of 5 files and 250 lines of code. The average complexity
+is 9.0, and the test-to-source ratio is 0.5. The Quality Gate returns `FAILED`
+due to three security issues. The technical debt amounts to 2 points.
+
+## How the Visitor Pattern Is Structured
+
+**What problem does the Visitor pattern solve, and where are its components located?**
+It allows a single file tree to be processed in multiple ways. The `element`
+package contains the `ProjectElement` interface along with classes for files
+and folders. The `visitor` package contains the `ProjectVisitor` interface
+and the implementations of specific operations. **What is double dispatch?**
+When `element.accept(visitor)` is called, Java selects the implementation of `accept()` based on the actual runtime type of the element. For instance, inside `SourceCodeFile.accept()`, the call `visitor.visit(this)` corresponds to the `visit(SourceCodeFile)` overload. Java then executes the implementation of this overload within the provided visitor. Consequently, the outcome depends on both the type of the element and the type of the visitor.
+
+**Why are the checks moved out of the element classes?**
+The elements store data and pass themselves to the visitor. If the checks were located within the elements themselves, adding a new operation would require modifying multiple file classes. `Directory.accept()` also handles the traversal of child elements, which spares visitors from having to duplicate that logic.
+
+**Which is easier to add: a visitor or an element?**
+A new visitor can be implemented by adhering to the existing `ProjectVisitor` interface. For example, `TechnicalDebtVisitor` was added in a separate commit, complete with tests and an invocation in the `Main` class, all while leaving the existing element classes unchanged.
+
+Adding a `DatabaseMigrationFile` requires the following steps:
+
+1. Create a `DatabaseMigrationFile` class that implements `ProjectElement` and calls `visitor.visit(this)` within its `accept()` method.
+2. Add `visit(DatabaseMigrationFile file)` to the `ProjectVisitor` interface.
+3. Implement this new overload across all five existing visitors. For each operation, you must determine how to handle migration files; if an operation does not apply to them, the method can simply be left empty.
+
+Once the interface is modified, existing visitors will fail to compile until they implement the new overload. There is no need to alter `ProjectElement`, `Directory`, or any of the existing file classes, as the directory structure is already designed to accept any `ProjectElement`. **When is the Visitor pattern a poor choice?**
+If element types are frequently added or modified, you will have to regularly update the interface and all visitor implementations. The Visitor pattern is most effective when the set of types is stable, while new operations are added more frequently.
+
+**How does Visitor differ from Strategy?**
+The Strategy pattern allows you to select an algorithm for a specific task via a common interface. The Visitor pattern, by contrast, defines an operation to be performed on a tree of various types, specifying how that operation should handle each individual element type.
+
+**Which SOLID principles are reflected in this design?**
+
+- **SRP (Single Responsibility Principle):** Each visitor is responsible for a distinct operation. For example, `ProjectStatisticsVisitor` calculates metrics, while `ComplianceVisitor` checks for adherence to rules.
+- **OCP (Open/Closed Principle):** New operations can be added by creating new implementations of `ProjectVisitor`. However, expanding the set of element types requires modifying the interface and existing visitor implementations.
+- **DIP (Dependency Inversion Principle):** Elements accept the `ProjectVisitor` abstraction, and `Directory` stores its child elements via the `ProjectElement` interface.
+
+## UML
+
+- [Class Diagram](docs/class-diagram.md)
+- [Sequence Diagram](docs/sequence-diagram.md)
